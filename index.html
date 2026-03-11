@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Mini Agenda UREL</title>
+<style>
+  /* --- Reset & base --- */
+  * { box-sizing: border-box; margin:0; padding:0; font-family: Arial, sans-serif; }
+  body { background: #f0f2f5; padding: 20px; }
+
+  h1, h2 { text-align: center; margin-bottom: 20px; color: #333; }
+
+  /* --- Formulaire ajout --- */
+  form { 
+    display: flex; flex-wrap: wrap; 
+    justify-content: center; 
+    gap: 10px; 
+    margin-bottom: 30px; 
+  }
+  input, button {
+    padding: 10px;
+    font-size: 1rem;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+  }
+  button {
+    background: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+  button:hover { background: #0056b3; }
+
+  /* --- Liste événements --- */
+  #listeEvenements {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    list-style: none;
+  }
+  #listeEvenements li {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    position: relative;
+  }
+  #listeEvenements li strong { font-size: 1.1rem; color: #007bff; }
+  #listeEvenements li p { margin: 5px 0; color: #555; }
+
+  /* --- Boutons modifier/supprimer --- */
+  #listeEvenements button {
+    margin-top: 10px;
+    margin-right: 5px;
+    padding: 5px 8px;
+    font-size: 0.9rem;
+  }
+  #listeEvenements button:nth-child(1) { background: #ffc107; color: #333; }
+  #listeEvenements button:nth-child(1):hover { background: #e0a800; }
+  #listeEvenements button:nth-child(2) { background: #dc3545; color: white; }
+  #listeEvenements button:nth-child(2):hover { background: #c82333; }
+
+  /* --- Modal --- */
+  #modal {
+    display: none;
+    position: fixed;
+    top:0; left:0; right:0; bottom:0;
+    background: rgba(0,0,0,0.5);
+    justify-content: center;
+    align-items: center;
+  }
+  #modalContent {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 400px;
+  }
+
+  #modalContent form { flex-direction: column; }
+  #modalContent input { margin-bottom: 10px; width: 100%; }
+
+  /* --- Navigation --- */
+  nav {
+    text-align: right;
+    margin-bottom: 20px;
+  }
+  nav a {
+    text-decoration: none;
+    color: #007bff;
+    font-weight: bold;
+    margin-left: 15px;
+  }
+</style>
+<script>
+let evenementEnCours = null;
+
+async function chargerEvenements() {
+    const res = await fetch('/evenements');
+    const events = await res.json();
+    const liste = document.getElementById('listeEvenements');
+    liste.innerHTML = '';
+    events.forEach(ev => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <strong>${ev.date_evenement} ${ev.heure_evenement} - ${ev.titre}</strong>
+            <p><strong>Auteur:</strong> ${ev.auteur}</p>
+            <p><strong>Description:</strong> ${ev.description}</p>
+            <p><strong>Type:</strong> ${ev.type_event}</p>
+            <button onclick="ouvrirModifier(${ev.id}, '${ev.date_evenement}', '${ev.heure_evenement}', 
+                '${ev.titre}', '${ev.description}', '${ev.auteur}', '${ev.type_event}')">Modifier</button>
+            <button onclick="supprimerEvenement(${ev.id})">Supprimer</button>
+        `;
+        liste.appendChild(li);
+    });
+}
+
+async function ajouterEvenement() {
+    const data = recupFormData('evenementForm');
+    const res = await fetch('/evenements/ajouter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    if(res.ok){
+        document.getElementById('evenementForm').reset();
+        chargerEvenements();
+    }
+}
+
+function recupFormData(formId){
+    const f = document.getElementById(formId);
+    return {
+        date_evenement: f.date_evenement.value,
+        heure_evenement: f.heure_evenement.value,
+        titre: f.titre.value,
+        description: f.description.value,
+        auteur: f.auteur.value,
+        type_event: f.type_event.value
+    };
+}
+
+async function supprimerEvenement(id) {
+    const res = await fetch(`/evenements/supprimer/${id}`, { method: 'DELETE' });
+    if(res.ok) chargerEvenements();
+}
+
+function ouvrirModifier(id, date, heure, titre, description, auteur, type_event){
+    evenementEnCours = id;
+    const f = document.getElementById('modalForm');
+    f.date_evenement.value = date;
+    f.heure_evenement.value = heure;
+    f.titre.value = titre;
+    f.description.value = description;
+    f.auteur.value = auteur;
+    f.type_event.value = type_event;
+    document.getElementById('modal').style.display = 'flex';
+}
+
+async function validerModification() {
+    const data = recupFormData('modalForm');
+    const res = await fetch(`/evenements/modifier/${evenementEnCours}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    if(res.ok){
+        fermerModal();
+        chargerEvenements();
+    }
+}
+
+function fermerModal(){
+    document.getElementById('modal').style.display = 'none';
+}
+
+window.onload = chargerEvenements;
+</script>
+</head>
+<body>
+
+<nav>
+    <a href="/logout">Déconnexion</a>
+</nav>
+
+<h1>Mini Agenda UREL</h1>
+
+<h2>Ajouter un événement</h2>
+<form id="evenementForm" onsubmit="event.preventDefault(); ajouterEvenement();">
+    <input type="date" id="date_evenement" required>
+    <input type="time" id="heure_evenement" required>
+    <input type="text" id="titre" placeholder="Titre" required>
+    <input type="text" id="description" placeholder="Description">
+    <input type="text" id="auteur" placeholder="Auteur" required>
+    <input type="text" id="type_event" placeholder="Type événement" required>
+    <button type="submit">Ajouter</button>
+</form>
+
+<h2>Liste des événements</h2>
+<ul id="listeEvenements"></ul>
+
+<!-- Modal pour modifier -->
+<div id="modal">
+  <div id="modalContent">
+    <h3>Modifier l'événement</h3>
+    <form id="modalForm" onsubmit="event.preventDefault(); validerModification();">
+        <input type="date" id="date_evenement" required>
+        <input type="time" id="heure_evenement" required>
+        <input type="text" id="titre" placeholder="Titre" required>
+        <input type="text" id="description" placeholder="Description">
+        <input type="text" id="auteur" placeholder="Auteur" required>
+        <input type="text" id="type_event" placeholder="Type événement" required>
+        <button type="submit">Valider</button>
+        <button type="button" onclick="fermerModal()">Annuler</button>
+    </form>
+  </div>
+</div>
+
+</body>
+</html>
